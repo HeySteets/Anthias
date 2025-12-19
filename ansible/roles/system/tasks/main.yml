@@ -257,16 +257,28 @@
       - docker-compose
     state: absent
 
+- name: Ensure keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
 - name: Add Docker apt key (x86)
-  ansible.builtin.apt_key:
-    url: https://download.docker.com/linux/debian/gpg
-    state: present
+  ansible.builtin.shell: |
+    curl -fsSL https://download.docker.com/linux/debian/gpg | \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod 644 /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
   when: ansible_architecture == "x86_64"
 
 - name: Add Docker apt key (Raspberry Pi)
-  ansible.builtin.apt_key:
-    url: https://download.docker.com/linux/raspbian/gpg
-    state: present
+  ansible.builtin.shell: |
+    curl -fsSL https://download.docker.com/linux/raspbian/gpg | \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod 644 /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
   when: |
     ansible_architecture == "aarch64" or
     ansible_architecture == "armv7l" or
@@ -276,6 +288,23 @@
   ansible.builtin.command: lsb_release -cs
   register: debian_name
   changed_when: false
+
+- name: Add Docker repository (x86)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian {{ debian_name.stdout }} stable"
+    state: present
+    filename: docker
+  when: ansible_architecture == "x86_64"
+
+- name: Add Docker repository (Raspberry Pi)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=armhf signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/raspbian {{ debian_name.stdout }} stable"
+    state: present
+    filename: docker
+  when: |
+    ansible_architecture == "aarch64" or
+    ansible_architecture == "armv7l" or
+    ansible_architecture == "armv6l"
 
 - name: Check system bit width
   ansible.builtin.command: getconf LONG_BIT
